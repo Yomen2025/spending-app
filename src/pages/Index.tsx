@@ -1,18 +1,66 @@
-import { useState } from "react";
-import { ExpenseForm, Expense } from "@/components/ExpenseForm";
+import { useState, useEffect } from "react";
+import { ExpenseForm } from "@/components/ExpenseForm";
 import { ExpenseList } from "@/components/ExpenseList";
+import { TripSelector } from "@/components/TripSelector";
+import { ContributorBalances } from "@/components/ContributorBalances";
 import { Wallet, TrendingUp } from "lucide-react";
+import { supabase, Trip, ContributorBalance } from "@/lib/supabase";
 
 const Index = () => {
-  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [contributorBalances, setContributorBalances] = useState<ContributorBalance[]>([]);
 
-  const handleAddExpense = (expenseData: Omit<Expense, 'id' | 'date'>) => {
-    const newExpense: Expense = {
-      ...expenseData,
-      id: crypto.randomUUID(),
-      date: new Date(),
-    };
-    setExpenses(prev => [newExpense, ...prev]);
+  useEffect(() => {
+    if (selectedTrip) {
+      loadContributorBalances();
+    }
+  }, [selectedTrip, refreshTrigger]);
+
+  const loadContributorBalances = async () => {
+    if (!selectedTrip) return;
+
+    try {
+      // Get all contributors for the trip
+      const { data: contributors, error: contributorsError } = await supabase
+        .from('contributors')
+        .select('*')
+        .eq('trip_id', selectedTrip.id);
+
+      if (contributorsError) throw contributorsError;
+
+      // Get all expenses for the trip
+      const { data: expenses, error: expensesError } = await supabase
+        .from('expenses')
+        .select('*')
+        .eq('trip_id', selectedTrip.id);
+
+      if (expensesError) throw expensesError;
+
+      // Calculate balances
+      const totalExpenses = expenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0;
+      const contributorCount = contributors?.length || 1;
+      const averagePerPerson = totalExpenses / contributorCount;
+
+      const balances: ContributorBalance[] = (contributors || []).map(contributor => {
+        const totalPaid = expenses?.filter(e => e.paid_by_contributor_id === contributor.id)
+          .reduce((sum, expense) => sum + expense.amount, 0) || 0;
+        
+        return {
+          contributor,
+          totalPaid,
+          balance: totalPaid - averagePerPerson
+        };
+      });
+
+      setContributorBalances(balances);
+    } catch (error) {
+      console.error('Error loading contributor balances:', error);
+    }
+  };
+
+  const handleExpenseAdded = () => {
+    setRefreshTrigger(prev => prev + 1);
   };
 
   return (
@@ -37,15 +85,30 @@ const Index = () => {
 
       {/* Main Content */}
       <main className="container mx-auto px-4 py-8">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Form Section */}
-          <div>
-            <ExpenseForm onAddExpense={handleAddExpense} />
+        <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
+          {/* Trip & Form Section */}
+          <div className="space-y-6">
+            <TripSelector 
+              selectedTrip={selectedTrip} 
+              onTripSelect={setSelectedTrip} 
+            />
+            <ExpenseForm 
+              selectedTrip={selectedTrip} 
+              onExpenseAdded={handleExpenseAdded} 
+            />
           </div>
 
           {/* List Section */}
           <div>
-            <ExpenseList expenses={expenses} />
+            <ExpenseList 
+              selectedTrip={selectedTrip} 
+              refreshTrigger={refreshTrigger} 
+            />
+          </div>
+
+          {/* Balances Section */}
+          <div>
+            <ContributorBalances balances={contributorBalances} />
           </div>
         </div>
       </main>

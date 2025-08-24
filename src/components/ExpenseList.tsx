@@ -1,19 +1,141 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Receipt, TrendingUp, Users, DollarSign } from "lucide-react";
-import { Expense } from "./ExpenseForm";
+import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calendar, User, Receipt, DollarSign, Users, Edit, Trash2 } from "lucide-react";
+import { supabase, Trip, Expense, Contributor } from "@/lib/supabase";
+import { useToast } from "@/hooks/use-toast";
 
 interface ExpenseListProps {
-  expenses: Expense[];
+  selectedTrip: Trip | null;
+  refreshTrigger: number;
 }
 
-export const ExpenseList = ({ expenses }: ExpenseListProps) => {
-  const totalAmount = expenses.reduce((sum, expense) => sum + expense.amount, 0);
-  
-  const expensesByPerson = expenses.reduce((acc, expense) => {
-    acc[expense.paidBy] = (acc[expense.paidBy] || 0) + expense.amount;
-    return acc;
-  }, {} as Record<string, number>);
+export const ExpenseList = ({ selectedTrip, refreshTrigger }: ExpenseListProps) => {
+  const [expenses, setExpenses] = useState<(Expense & { contributors: Contributor })[]>([]);
+  const [contributors, setContributors] = useState<Contributor[]>([]);
+  const [editingExpense, setEditingExpense] = useState<Expense | null>(null);
+  const [editForm, setEditForm] = useState({ amount: '', description: '', paid_by_contributor_id: '' });
+  const { toast } = useToast();
+
+  useEffect(() => {
+    if (selectedTrip) {
+      loadExpenses();
+      loadContributors();
+    }
+  }, [selectedTrip, refreshTrigger]);
+
+  const loadExpenses = async () => {
+    if (!selectedTrip) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('expenses')
+        .select(`
+          *,
+          contributors (
+            id,
+            name,
+            email
+          )
+        `)
+        .eq('trip_id', selectedTrip.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setExpenses(data || []);
+    } catch (error) {
+      console.error('Error loading expenses:', error);
+    }
+  };
+
+  const loadContributors = async () => {
+    if (!selectedTrip) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('contributors')
+        .select('*')
+        .eq('trip_id', selectedTrip.id)
+        .order('name');
+
+      if (error) throw error;
+      setContributors(data || []);
+    } catch (error) {
+      console.error('Error loading contributors:', error);
+    }
+  };
+
+  const handleEditExpense = (expense: Expense) => {
+    setEditingExpense(expense);
+    setEditForm({
+      amount: expense.amount.toString(),
+      description: expense.description,
+      paid_by_contributor_id: expense.paid_by_contributor_id
+    });
+  };
+
+  const handleUpdateExpense = async () => {
+    if (!editingExpense) return;
+
+    try {
+      const { error } = await supabase
+        .from('expenses')
+        .update({
+          amount: parseFloat(editForm.amount),
+          description: editForm.description,
+          paid_by_contributor_id: editForm.paid_by_contributor_id
+        })
+        .eq('id', editingExpense.id);
+
+      if (error) throw error;
+
+      setEditingExpense(null);
+      loadExpenses();
+      
+      toast({
+        title: "Success",
+        description: "Expense updated successfully",
+      });
+    } catch (error) {
+      console.error('Error updating expense:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update expense",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDeleteExpense = async (expenseId: string) => {
+    try {
+      const { error } = await supabase
+        .from('expenses')
+        .delete()
+        .eq('id', expenseId);
+
+      if (error) throw error;
+
+      loadExpenses();
+      
+      toast({
+        title: "Success",
+        description: "Expense deleted successfully",
+      });
+    } catch (error) {
+      console.error('Error deleting expense:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete expense",
+        variant: "destructive",
+      });
+    }
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
@@ -22,130 +144,200 @@ export const ExpenseList = ({ expenses }: ExpenseListProps) => {
     }).format(amount);
   };
 
-  const formatDate = (date: Date) => {
+  const formatDate = (dateString: string) => {
     return new Intl.DateTimeFormat('en-US', {
       month: 'short',
       day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).format(date);
+      year: 'numeric',
+    }).format(new Date(dateString));
   };
 
-  return (
-    <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <Card className="border-0 bg-gradient-primary shadow-primary">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-primary-foreground/80 text-sm font-medium">Total Spent</p>
-                <p className="text-2xl font-bold text-primary-foreground">{formatCurrency(totalAmount)}</p>
-              </div>
-              <DollarSign className="h-8 w-8 text-primary-foreground/80" />
-            </div>
-          </CardContent>
-        </Card>
+  const totalAmount = expenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const spendingByPerson = expenses.reduce((acc, expense) => {
+    const contributorName = expense.contributors?.name || 'Unknown';
+    acc[contributorName] = (acc[contributorName] || 0) + expense.amount;
+    return acc;
+  }, {} as Record<string, number>);
 
-        <Card className="border-0 bg-gradient-accent shadow-financial">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-accent-foreground/80 text-sm font-medium">Total Expenses</p>
-                <p className="text-2xl font-bold text-accent-foreground">{expenses.length}</p>
-              </div>
-              <Receipt className="h-8 w-8 text-accent-foreground/80" />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card className="border-0 bg-gradient-subtle shadow-financial">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-muted-foreground text-sm font-medium">Contributors</p>
-                <p className="text-2xl font-bold text-foreground">{Object.keys(expensesByPerson).length}</p>
-              </div>
-              <Users className="h-8 w-8 text-muted-foreground" />
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Expenses List */}
-      <Card className="shadow-financial border-0">
-        <CardHeader>
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-primary" />
-            <CardTitle>Recent Expenses</CardTitle>
-          </div>
-          <CardDescription>
-            Track all your spending in one place
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {expenses.length === 0 ? (
-            <div className="text-center py-12">
-              <Receipt className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
-              <p className="text-muted-foreground text-lg mb-2">No expenses yet</p>
-              <p className="text-muted-foreground text-sm">Add your first expense above to get started</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {expenses.map((expense) => (
-                <div
-                  key={expense.id}
-                  className="flex items-center justify-between p-4 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors border border-border/30"
-                >
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <h3 className="font-semibold text-foreground">{expense.description}</h3>
-                      <Badge variant="secondary" className="text-xs">
-                        {expense.paidBy}
-                      </Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground">
-                      {formatDate(expense.date)}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xl font-bold text-primary">
-                      {formatCurrency(expense.amount)}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+  if (!selectedTrip) {
+    return (
+      <Card className="w-full">
+        <CardContent className="pt-6">
+          <p className="text-center text-muted-foreground">Please select a trip to view expenses</p>
         </CardContent>
       </Card>
+    );
+  }
 
-      {/* Summary by Person */}
-      {Object.keys(expensesByPerson).length > 0 && (
-        <Card className="shadow-financial border-0">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-primary" />
-              Spending by Person
-            </CardTitle>
-            <CardDescription>
-              See who's contributed how much
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="space-y-3">
-              {Object.entries(expensesByPerson)
-                .sort(([, a], [, b]) => b - a)
-                .map(([person, amount]) => (
-                  <div key={person} className="flex items-center justify-between p-3 rounded-lg bg-muted/20 border border-border/20">
-                    <span className="font-medium text-foreground">{person}</span>
-                    <span className="font-bold text-primary">{formatCurrency(amount)}</span>
-                  </div>
-                ))}
+  return (
+    <Card className="w-full">
+      <CardHeader className="bg-gradient-subtle border-b border-border/50">
+        <CardTitle className="flex items-center gap-2 text-foreground">
+          <div className="p-2 rounded-lg bg-gradient-primary shadow-primary">
+            <Receipt className="h-5 w-5 text-primary-foreground" />
+          </div>
+          Expense Overview
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-6">
+        {/* Summary Stats */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="text-center p-4 rounded-xl bg-gradient-primary shadow-primary">
+            <DollarSign className="h-6 w-6 text-primary-foreground mx-auto mb-2" />
+            <div className="text-2xl font-bold text-primary-foreground">{formatCurrency(totalAmount)}</div>
+            <div className="text-sm text-primary-foreground/80">Total Spent</div>
+          </div>
+          <div className="text-center p-4 rounded-xl bg-muted">
+            <Receipt className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
+            <div className="text-2xl font-bold text-foreground">{expenses.length}</div>
+            <div className="text-sm text-muted-foreground">Expenses</div>
+          </div>
+          <div className="text-center p-4 rounded-xl bg-muted">
+            <Users className="h-6 w-6 text-muted-foreground mx-auto mb-2" />
+            <div className="text-2xl font-bold text-foreground">{Object.keys(spendingByPerson).length}</div>
+            <div className="text-sm text-muted-foreground">Contributors</div>
+          </div>
+        </div>
+
+        <Separator className="my-6" />
+
+        {/* Expenses List */}
+        <div className="space-y-4">
+          <h3 className="text-lg font-semibold text-foreground">Recent Expenses</h3>
+          {expenses.length === 0 ? (
+            <div className="text-center py-8">
+              <Receipt className="h-12 w-12 text-muted-foreground mx-auto mb-4 opacity-50" />
+              <p className="text-muted-foreground">No expenses yet</p>
+              <p className="text-sm text-muted-foreground">Add your first expense to get started</p>
             </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+          ) : (
+            expenses.map((expense) => (
+              <div key={expense.id} className="flex items-center justify-between p-4 border border-border/50 rounded-xl bg-card hover:bg-accent/50 transition-all duration-300 hover:shadow-elegant group">
+                <div className="flex items-center gap-4">
+                  <div className="p-2 rounded-lg bg-gradient-primary shadow-primary group-hover:shadow-glow transition-all duration-300">
+                    <Receipt className="h-4 w-4 text-primary-foreground" />
+                  </div>
+                  <div className="space-y-1">
+                    <p className="font-medium text-foreground group-hover:text-primary transition-colors">
+                      {expense.description}
+                    </p>
+                    <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <User className="h-3 w-3" />
+                        <span>{expense.contributors?.name || 'Unknown'}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Calendar className="h-3 w-3" />
+                        <span>{formatDate(expense.created_at)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="text-lg font-bold text-primary">
+                    {formatCurrency(expense.amount)}
+                  </div>
+                  <div className="flex gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleEditExpense(expense)}
+                      className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Edit className="h-3 w-3" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleDeleteExpense(expense.id)}
+                      className="h-8 w-8 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-destructive hover:text-destructive"
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Spending by Person */}
+        {Object.keys(spendingByPerson).length > 0 && (
+          <>
+            <Separator className="my-6" />
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-foreground">Spending by Person</h3>
+              <div className="space-y-2">
+                {Object.entries(spendingByPerson)
+                  .sort(([,a], [,b]) => b - a)
+                  .map(([person, amount]) => (
+                    <div key={person} className="flex items-center justify-between p-3 rounded-lg bg-muted/50">
+                      <span className="font-medium text-foreground">{person}</span>
+                      <Badge variant="secondary" className="font-semibold">
+                        {formatCurrency(amount)}
+                      </Badge>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          </>
+        )}
+      </CardContent>
+
+      {/* Edit Dialog */}
+      <Dialog open={editingExpense !== null} onOpenChange={() => setEditingExpense(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Edit Expense</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label htmlFor="edit-amount">Amount</Label>
+              <Input
+                id="edit-amount"
+                type="number"
+                step="0.01"
+                value={editForm.amount}
+                onChange={(e) => setEditForm(prev => ({ ...prev, amount: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-description">Description</Label>
+              <Input
+                id="edit-description"
+                value={editForm.description}
+                onChange={(e) => setEditForm(prev => ({ ...prev, description: e.target.value }))}
+              />
+            </div>
+            <div>
+              <Label htmlFor="edit-contributor">Paid By</Label>
+              <Select
+                value={editForm.paid_by_contributor_id}
+                onValueChange={(value) => setEditForm(prev => ({ ...prev, paid_by_contributor_id: value }))}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select who paid" />
+                </SelectTrigger>
+                <SelectContent>
+                  {contributors.map((contributor) => (
+                    <SelectItem key={contributor.id} value={contributor.id}>
+                      {contributor.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={handleUpdateExpense} className="flex-1">
+                Update Expense
+              </Button>
+              <Button variant="outline" onClick={() => setEditingExpense(null)} className="flex-1">
+                Cancel
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </Card>
   );
 };
