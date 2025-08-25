@@ -1,9 +1,4 @@
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = 'https://ppzmhcojvwmizabagcpz.supabase.co'
-const supabaseKey = process.env.SUPABASE_KEY
-
-const supabase = createClient(supabaseUrl, supabaseKey)
+// Database types - re-export from main client
 
 // Database types
 export interface Trip {

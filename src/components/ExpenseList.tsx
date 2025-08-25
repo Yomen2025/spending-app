@@ -8,7 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Calendar, User, Receipt, DollarSign, Users, Edit, Trash2 } from "lucide-react";
-import { supabase, Trip, Expense, Contributor } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
+import { Trip, Expense, Contributor } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 
 interface ExpenseListProps {

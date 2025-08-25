@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { DollarSign, Plus } from "lucide-react";
-import { supabase, Trip, Contributor } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
+import { Trip, Contributor } from "@/lib/supabase";
 import { useToast } from "@/hooks/use-toast";
 
 interface ExpenseFormProps {
