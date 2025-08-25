@@ -8,15 +8,15 @@ import { Wallet, TrendingUp, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { Trip, ContributorBalance } from "@/lib/supabase";
-import { useAuth } from "@/hooks/useAuth";
+/*import { useAuth } from "@/hooks/useAuth";*/
 
 const Index = () => {
-  const { user, loading, signOut } = useAuth();
+  /*const { user, loading, signOut } = useAuth();*/
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [contributorBalances, setContributorBalances] = useState<ContributorBalance[]>([]);
 
-  // Redirect to auth if not authenticated
+  /*// Redirect to auth if not authenticated
   if (loading) {
     return <div className="min-h-screen bg-background flex items-center justify-center">
       <div className="text-lg">Loading...</div>
@@ -25,7 +25,7 @@ const Index = () => {
 
   if (!user) {
     return <Navigate to="/auth" replace />;
-  }
+  }*/
 
   useEffect(() => {
     if (selectedTrip) {
@@ -97,12 +97,12 @@ const Index = () => {
             </div>
             <div className="flex items-center gap-4">
               <p className="text-sm text-muted-foreground">
-                Welcome, {user.email}
+                Welcome! 
               </p>
               <Button 
                 variant="outline" 
                 size="sm" 
-                onClick={signOut}
+                /*onClick={signOut}*/
                 className="flex items-center gap-2"
               >
                 <LogOut className="h-4 w-4" />
