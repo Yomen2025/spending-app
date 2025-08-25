@@ -1,16 +1,31 @@
 import { useState, useEffect } from "react";
+import { Navigate } from "react-router-dom";
 import { ExpenseForm } from "@/components/ExpenseForm";
 import { ExpenseList } from "@/components/ExpenseList";
 import { TripSelector } from "@/components/TripSelector";
 import { ContributorBalances } from "@/components/ContributorBalances";
-import { Wallet, TrendingUp } from "lucide-react";
+import { Wallet, TrendingUp, LogOut } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
 import { Trip, ContributorBalance } from "@/lib/supabase";
+import { useAuth } from "@/hooks/useAuth";
 
 const Index = () => {
+  const { user, loading, signOut } = useAuth();
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [contributorBalances, setContributorBalances] = useState<ContributorBalance[]>([]);
+
+  // Redirect to auth if not authenticated
+  if (loading) {
+    return <div className="min-h-screen bg-background flex items-center justify-center">
+      <div className="text-lg">Loading...</div>
+    </div>;
+  }
+
+  if (!user) {
+    return <Navigate to="/auth" replace />;
+  }
 
   useEffect(() => {
     if (selectedTrip) {
@@ -73,12 +88,26 @@ const Index = () => {
             <div className="p-3 rounded-xl bg-gradient-primary shadow-primary">
               <Wallet className="h-8 w-8 text-primary-foreground" />
             </div>
-            <div>
+            <div className="flex-1">
               <h1 className="text-4xl font-bold text-foreground">ExpenseTracker</h1>
               <div className="flex items-center gap-2 mt-1">
                 <TrendingUp className="h-4 w-4 text-primary" />
                 <p className="text-muted-foreground">Smart expense management made simple</p>
               </div>
+            </div>
+            <div className="flex items-center gap-4">
+              <p className="text-sm text-muted-foreground">
+                Welcome, {user.email}
+              </p>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={signOut}
+                className="flex items-center gap-2"
+              >
+                <LogOut className="h-4 w-4" />
+                Sign Out
+              </Button>
             </div>
           </div>
         </div>
