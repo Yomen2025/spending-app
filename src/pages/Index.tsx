@@ -4,7 +4,8 @@ import { ExpenseList } from "@/components/ExpenseList";
 import { TripSelector } from "@/components/TripSelector";
 import { ContributorBalances } from "@/components/ContributorBalances";
 import { Wallet, TrendingUp } from "lucide-react";
-import { supabase, Trip, ContributorBalance } from "@/lib/supabase";
+import { supabase } from "@/integrations/supabase/client";
+import { Trip, ContributorBalance } from "@/lib/supabase";
 
 const Index = () => {
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);

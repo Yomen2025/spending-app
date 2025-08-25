@@ -42,7 +42,9 @@ export const ExpenseList = ({ selectedTrip, refreshTrigger }: ExpenseListProps) 
           contributors (
             id,
             name,
-            email
+            email,
+            trip_id,
+            created_at
           )
         `)
         .eq('trip_id', selectedTrip.id)
