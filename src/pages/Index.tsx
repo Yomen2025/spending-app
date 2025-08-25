@@ -39,13 +39,13 @@ const Index = () => {
       if (expensesError) throw expensesError;
 
       // Calculate balances
-      const totalExpenses = expenses?.reduce((sum, expense) => sum + expense.amount, 0) || 0;
+      const totalExpenses = expenses?.reduce((sum, expense) => sum + Number(expense.amount), 0) || 0;
       const contributorCount = contributors?.length || 1;
       const averagePerPerson = totalExpenses / contributorCount;
 
       const balances: ContributorBalance[] = (contributors || []).map(contributor => {
         const totalPaid = expenses?.filter(e => e.paid_by_contributor_id === contributor.id)
-          .reduce((sum, expense) => sum + expense.amount, 0) || 0;
+          .reduce((sum, expense) => sum + Number(expense.amount), 0) || 0;
         
         return {
           contributor,
